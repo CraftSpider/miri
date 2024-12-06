@@ -542,7 +542,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                 let [handle, name] =
                     this.check_shim(abi, ExternAbi::System { unwind: false }, link_name, args)?;
 
-                let handle = this.read_handle(handle)?;
+                let handle = this.read_handle(handle, "SetThreadDescription")?;
                 let name = this.read_wide_str(this.read_pointer(name)?)?;
 
                 let thread = match handle {
@@ -558,7 +558,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                 let [handle, name_ptr] =
                     this.check_shim(abi, ExternAbi::System { unwind: false }, link_name, args)?;
 
-                let handle = this.read_handle(handle)?;
+                let handle = this.read_handle(handle, "GetThreadDescription")?;
                 let name_ptr = this.deref_pointer(name_ptr)?; // the pointer where we should store the ptr to the name
 
                 let thread = match handle {
@@ -674,7 +674,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                     this.check_shim(abi, ExternAbi::System { unwind: false }, link_name, args)?;
                 this.check_no_isolation("`GetModuleFileNameW`")?;
 
-                let handle = this.read_handle(handle)?;
+                let handle = this.read_handle(handle, "GetModuleFileNameW")?;
                 let filename = this.read_pointer(filename)?;
                 let size = this.read_scalar(size)?.to_u32()?;
 
