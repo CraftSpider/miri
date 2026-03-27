@@ -335,6 +335,51 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
         }
     }
 
+    fn FindFirstFileExW(
+        &mut self,
+        file_name: &OpTy<'tcx>,      // LPCWSTR
+        info_level_id: &OpTy<'tcx>,  // FINDEX_INFO_LEVELS
+        find_file_data: &OpTy<'tcx>, // LPVOID
+        search_op: &OpTy<'tcx>,      // FINDEX_SEARCH_OPS
+        search_filter: &OpTy<'tcx>,  // LPVOID
+        flags: &OpTy<'tcx>,          // DWORD
+    ) -> InterpResult<'tcx, Handle> {
+        // ^ Returns HANDLE (i32 on Windows)
+        let this = self.eval_context_mut();
+        this.assert_target_os(Os::Windows, "FindFirstFileExW");
+        this.check_no_isolation("`FindFirstFileExW`")?;
+
+        let file_name = this.read_path_from_wide_str(this.read_pointer(file_name)?)?;
+        let info_level_id = this.read_scalar(info_level_id)?.to_i32()?;
+        let find_file_data =
+            this.deref_pointer_as(find_file_data, this.windows_ty_layout("WIN32_FIND_DATAW"))?;
+        let search_op = this.read_scalar(search_op)?.to_i32()?;
+        let search_filter = this.read_pointer(search_filter)?;
+        let flags = this.read_scalar(flags)?.to_u32()?;
+
+        let find_ex_info_basic = this.eval_windows("c", "FindExInfoBasic").to_i32()?;
+        let find_ex_search_name_match = this.eval_windows("c", "FindExSearchNameMatch").to_i32()?;
+
+        if info_level_id != find_ex_info_basic {
+            throw_unsup_format!(
+                "FindFirstFileExW: unsupported fInfoLevelId value {}",
+                info_level_id
+            );
+        }
+
+        if search_op != find_ex_search_name_match {
+            throw_unsup_format!("FindFirstFileExW: unsupported fSearchOp value {}", search_op);
+        }
+
+        if !this.ptr_is_null(search_filter)? {
+            throw_unsup_format!("FindFirstFileExW: Search filters are not supported");
+        }
+
+        if flags != 0 {
+            throw_unsup_format!("FindFirstFileExW: unsupported dwAdditionalFlags value {}", flags);
+        }
+    }
+
     fn GetFileInformationByHandle(
         &mut self,
         file: &OpTy<'tcx>,             // HANDLE

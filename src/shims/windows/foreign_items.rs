@@ -402,6 +402,33 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                 let res = this.CreateDirectoryW(path, security_attrs)?;
                 this.write_scalar(res, dest)?;
             }
+            "FindFirstFileExW" => {
+                let [file_name, info_level_id, find_file_data, search_op, search_filter, flags] =
+                    this.check_shim_sig(
+                        shim_sig!(
+                            extern "system" fn(
+                                *const _,
+                                i32,
+                                *mut _,
+                                i32,
+                                *const _,
+                                u32,
+                            ) -> winapi::HANDLE
+                        ),
+                        link_name,
+                        abi,
+                        args,
+                    )?;
+                let handle = this.FindFirstFileExW(
+                    file_name,
+                    info_level_id,
+                    find_file_data,
+                    search_op,
+                    search_filter,
+                    flags,
+                )?;
+                this.write_scalar(handle.to_scalar(this), dest)?;
+            }
             "GetFileInformationByHandle" => {
                 let [handle, info] = this.check_shim_sig(
                     shim_sig!(extern "system" fn(winapi::HANDLE, *mut _) -> winapi::BOOL),
