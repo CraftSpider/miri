@@ -392,6 +392,16 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                 )?;
                 this.write_scalar(handle.to_scalar(this), dest)?;
             }
+            "CreateDirectoryW" => {
+                let [path, security_attrs] = this.check_shim_sig(
+                    shim_sig!(extern "system" fn(*const _, *const _) -> winapi::BOOL),
+                    link_name,
+                    abi,
+                    args,
+                )?;
+                let res = this.CreateDirectoryW(path, security_attrs)?;
+                this.write_scalar(res, dest)?;
+            }
             "GetFileInformationByHandle" => {
                 let [handle, info] = this.check_shim_sig(
                     shim_sig!(extern "system" fn(winapi::HANDLE, *mut _) -> winapi::BOOL),

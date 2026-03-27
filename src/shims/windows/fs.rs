@@ -185,6 +185,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
 
         let generic_read = this.eval_windows_u32("c", "GENERIC_READ");
         let generic_write = this.eval_windows_u32("c", "GENERIC_WRITE");
+        let file_list_directory = this.eval_windows_u32("c", "FILE_LIST_DIRECTORY");
 
         let file_share_delete = this.eval_windows_u32("c", "FILE_SHARE_DELETE");
         let file_share_read = this.eval_windows_u32("c", "FILE_SHARE_READ");
@@ -221,10 +222,12 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
 
         let desired_read = desired_access & generic_read != 0;
         let desired_write = desired_access & generic_write != 0;
+        // This also includes, for a directory, the ability to list the content
+        let desired_read_data = desired_access & file_list_directory != 0;
 
         let mut options = OpenOptions::new();
-        if desired_read {
-            desired_access &= !generic_read;
+        if desired_read || desired_read_data {
+            desired_access &= !(generic_read | file_list_directory);
             options.read(true);
         }
         if desired_write {
@@ -302,6 +305,32 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
             Err(e) => {
                 this.set_last_error(e)?;
                 interp_ok(Handle::Invalid)
+            }
+        }
+    }
+
+    fn CreateDirectoryW(
+        &mut self,
+        path: &OpTy<'tcx>,                // LPCWSTR
+        security_attributes: &OpTy<'tcx>, // LPSECURITY_ATTRIBUTES
+    ) -> InterpResult<'tcx, Scalar> {
+        // ^ Returns BOOL (i32 on Windows)
+        let this = self.eval_context_mut();
+        this.assert_target_os(Os::Windows, "CreateDirectoryW");
+        this.check_no_isolation("`CreateDirectoryW`")?;
+
+        let path = this.read_path_from_wide_str(this.read_pointer(path)?)?;
+        let security_attributes = this.read_pointer(security_attributes)?;
+
+        if !this.ptr_is_null(security_attributes)? {
+            throw_unsup_format!("CreateDirectoryW: Security attributes are not supported");
+        }
+
+        match std::fs::create_dir(path) {
+            Ok(_) => interp_ok(this.eval_windows("c", "TRUE")),
+            Err(e) => {
+                this.set_last_error(e)?;
+                interp_ok(this.eval_windows("c", "FALSE"))
             }
         }
     }
